@@ -104,9 +104,11 @@ export async function fetchFilteredInvoices(
 ) {
   noStore();
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+  query = `%${query}%`;
 
   try {
-    const invoices = await pool.query<InvoicesTable>(`
+    const invoices = await pool.query<InvoicesTable>(
+      `
       SELECT
         invoices.id,
         invoices.amount,
@@ -118,14 +120,16 @@ export async function fetchFilteredInvoices(
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
       WHERE
-        customers.name ILIKE ${`%${query}%`} OR
-        customers.email ILIKE ${`%${query}%`} OR
-        invoices.amount::text ILIKE ${`%${query}%`} OR
-        invoices.date::text ILIKE ${`%${query}%`} OR
-        invoices.status ILIKE ${`%${query}%`}
+        customers.name ILIKE $1 OR
+        customers.email ILIKE $1 OR
+        invoices.amount::text ILIKE $1 OR
+        invoices.date::text ILIKE $1 OR
+        invoices.status ILIKE $1
       ORDER BY invoices.date DESC
-      LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
-    `);
+      LIMIT $2 OFFSET $3
+    `,
+      [query, ITEMS_PER_PAGE, offset],
+    );
     return invoices.rows;
   } catch (error) {
     console.error('Database Error:', error);
@@ -135,17 +139,21 @@ export async function fetchFilteredInvoices(
 
 export async function fetchInvoicesPages(query: string) {
   noStore();
+  query = `%${query}%`;
   try {
-    const count = await pool.query(`SELECT COUNT(*)
+    const count = await pool.query(
+      `SELECT COUNT(*)
     FROM invoices
     JOIN customers ON invoices.customer_id = customers.id
     WHERE
-      customers.name ILIKE ${`%${query}%`} OR
-      customers.email ILIKE ${`%${query}%`} OR
-      invoices.amount::text ILIKE ${`%${query}%`} OR
-      invoices.date::text ILIKE ${`%${query}%`} OR
-      invoices.status ILIKE ${`%${query}%`}
-  `);
+      customers.name ILIKE $1 OR
+      customers.email ILIKE $1 OR
+      invoices.amount::text ILIKE $1 OR
+      invoices.date::text ILIKE $1 OR
+      invoices.status ILIKE $1
+  `,
+      [query],
+    );
 
     const totalPages = Math.ceil(Number(count.rows[0].count) / ITEMS_PER_PAGE);
     return totalPages;
@@ -201,7 +209,8 @@ export async function fetchCustomers() {
 
 export async function fetchFilteredCustomers(query: string) {
   try {
-    const data = await pool.query<CustomersTableType>(`
+    const data = await pool.query<CustomersTableType>(
+      `
 		SELECT
 		  customers.id,
 		  customers.name,
@@ -217,7 +226,9 @@ export async function fetchFilteredCustomers(query: string) {
         customers.email ILIKE $1
 		GROUP BY customers.id, customers.name, customers.email, customers.image_url
 		ORDER BY customers.name ASC
-	  `, [query]);
+	  `,
+      [query],
+    );
 
     const customers = data.rows.map((customer) => ({
       ...customer,
@@ -234,7 +245,9 @@ export async function fetchFilteredCustomers(query: string) {
 
 export async function getUser(email: string) {
   try {
-    const user = await pool.query(`SELECT * FROM users WHERE email=$1`, [email]);
+    const user = await pool.query(`SELECT * FROM users WHERE email=$1`, [
+      email,
+    ]);
     return user.rows[0] as User;
   } catch (error) {
     console.error('Failed to fetch user:', error);
